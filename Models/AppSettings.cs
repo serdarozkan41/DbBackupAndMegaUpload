@@ -11,17 +11,4 @@
         public MegaAccount MegaAccount { get; set; }
         public List<Company> Companies { get; set; }
     }
-
-    internal class Company
-    {
-        public string DatabaseName { get; set; }
-        public string ConnectionString { get; set; }
-        public string Name { get; set; }
-    }
-
-    internal class MegaAccount
-    {
-        public string Email { get; set; }
-        public string Password { get; set; }
-    }
 }
