@@ -1,4 +1,5 @@
-﻿using DbBackupAndMegaUpload.Models;
+﻿using CG.Web.MegaApiClient;
+using DbBackupAndMegaUpload.Models;
 using Ionic.Zip;
 using Newtonsoft.Json;
 using System.Data.SqlClient;
@@ -9,17 +10,20 @@ try
     AppSettings appSettings = JsonConvert.DeserializeObject<AppSettings>(File.ReadAllText("appsettings.json"));
 
     var timer = new PeriodicTimer(TimeSpan.FromSeconds(15));
-
     while (await timer.WaitForNextTickAsync())
     {
         timer.Dispose();
+
+        await Task.Delay(5000);
+
+        List<CompanyZipFile> zipFiles = new List<CompanyZipFile>();
 
         Console.Clear();
         Console.WriteLine($"----------------------------------START----------------------------------");
 
 
         Console.WriteLine($"Backup Folder: {appSettings.BackupFolder}");
-        List<string> zipFiles = new List<string>();
+
 
         foreach (var company in appSettings.Companies)
         {
@@ -59,7 +63,11 @@ try
                         File.Delete(backupFile);
                         Console.WriteLine($"Backup File Deleted.");
 
-                        zipFiles.Add(zipFile);
+                        zipFiles.Add(new CompanyZipFile
+                        {
+                            ZipFilePath = zipFile,
+                            CompanyName = company.Name,
+                        });
                     }
                     sqlConnection.Close();
                 }
@@ -72,11 +80,53 @@ try
 
         Console.WriteLine($"Starting backup and compression ready installation for all companies.");
 
+        Console.WriteLine($"----------------------------------MEGA START----------------------------------");
+
+        Console.WriteLine($"Login.");
+        MegaApiClient megaApiClient = new MegaApiClient();
+        var loginResponse = await megaApiClient.LoginAsync(appSettings.MegaAccount.Email, appSettings.MegaAccount.Password);
+        var nodeList = await megaApiClient.GetNodesAsync();
+        var rootFolder = nodeList.Single(q => q.Type == NodeType.Root);
+
+        File.WriteAllText("db_backup_logs.txt", $"Last Run Time: {DateTime.Now.ToString("dd.MM.yyyy HH:mm")}");
+
+        zipFiles.Add(new CompanyZipFile
+        {
+            ZipFilePath = "db_backup_logs.txt",
+            CompanyName = "Logs"
+        });
         foreach (var zipFile in zipFiles)
         {
-            //UPLOAD
-            Console.WriteLine(zipFile);
+            Console.WriteLine($"Uploading.");
+            INode companyFolder;
+
+            List<INode> companyFolders = nodeList.Where(x => x.ParentId == rootFolder.Id && x.Name == zipFile.CompanyName).ToList();
+            if (companyFolders is null || companyFolders.Count == 0)
+                companyFolder = await megaApiClient.CreateFolderAsync(zipFile.CompanyName, rootFolder);
+            else
+                companyFolder = companyFolders.First();
+
+            INode myFile = await megaApiClient.UploadFileAsync(zipFile.ZipFilePath, companyFolder);
+
+            Console.WriteLine($"Uploaded.");
         }
+
+
+        await megaApiClient.LogoutAsync();
+
+
+        Console.WriteLine($"----------------------------------MEGA END----------------------------------");
+
+        foreach (var zipFile in zipFiles)
+        {
+            if (zipFile.ZipFilePath != "db_backup_logs.txt")
+            {
+                File.Delete(zipFile.ZipFilePath);
+            }
+        }
+
+        Console.WriteLine($"Clear All Files.");
+
 
         Console.WriteLine($"Waiting.... {appSettings.WaitMinute} Minute.");
         Console.WriteLine($"Last Run Time: {DateTime.Now.ToString("dd.MM.yyyy HH:mm")}");
