@@ -90,11 +90,6 @@ try
 
         File.WriteAllText("db_backup_logs.txt", $"Last Run Time: {DateTime.Now.ToString("dd.MM.yyyy HH:mm")}");
 
-        zipFiles.Add(new CompanyZipFile
-        {
-            ZipFilePath = "db_backup_logs.txt",
-            CompanyName = "Logs"
-        });
         foreach (var zipFile in zipFiles)
         {
             Console.WriteLine($"Uploading.");
@@ -117,13 +112,6 @@ try
 
         Console.WriteLine($"----------------------------------MEGA END----------------------------------");
 
-        foreach (var zipFile in zipFiles)
-        {
-            if (zipFile.ZipFilePath != "db_backup_logs.txt")
-            {
-                File.Delete(zipFile.ZipFilePath);
-            }
-        }
 
         Console.WriteLine($"Clear All Files.");
 
